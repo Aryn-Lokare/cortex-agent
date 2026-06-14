@@ -55,38 +55,67 @@ Cortex is an autonomous, continuously learning AI-powered brand assistant and so
 ### Prerequisites
 
 *   [Node.js](https://nodejs.org/) (v18.x or later)
-*   [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
-*   A running [Supabase](https://supabase.com/) project
+*   [npm](https://www.npmjs.com/)
+*   A running [Supabase](https://supabase.com/) project (remote or local)
 
-### Configuration
+### Setup & Configuration
 
-1.  Navigate into the frontend application directory:
+1.  **Clone the Repository**:
+    ```bash
+    git clone <repository_url>
+    cd cortex-marketing-agent
+    ```
+
+2.  **Install Application Dependencies**:
     ```bash
     cd cortex
+    npm install
     ```
-2.  Duplicate `.env.example` as `.env.local`:
+
+3.  **Configure Environment Variables**:
+    Duplicate `.env.example` as `.env.local`:
     ```bash
     cp .env.example .env.local
     ```
-3.  Fill in the required environment variables:
+    Fill in the required environment variables:
     *   `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
     *   `SUPABASE_SERVICE_ROLE_KEY`
-    *   `GROQ_API_KEY`
-    *   `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY`
+    *   `GROQ_API_KEY` (Get from the Groq console)
 
-### Running the Development Server
+4.  **Apply Supabase Database Migrations**:
+    Open the [Supabase SQL Editor](https://supabase.com/dashboard) and run the following migration scripts located in the `cortex/supabase/` directory in order:
+    1.  [migration.sql](file:///cortex/supabase/migration.sql) — Core schemas (chat sessions, messages, tasks, approval queue, activity)
+    2.  [brand_profile_migration.sql](file:///cortex/supabase/brand_profile_migration.sql) — Brand profile structure
+    3.  [features_migration.sql](file:///cortex/supabase/features_migration.sql) — Campaigns, posts library, and metrics analytics snapshots
+    4.  [pipeline_migration.sql](file:///cortex/supabase/pipeline_migration.sql) — Sequential per-agent review runs and steps tables
 
-Start the local server within the `cortex/` subdirectory:
+5.  **Configure LinkedIn Social Integrations (Optional)**:
+    By default, the application runs realistic posting simulations. To publish live content to your real LinkedIn feed, add your access token to `.env.local`:
+    ```env
+    LINKEDIN_ACCESS_TOKEN=your_linkedin_oauth_access_token_here
+    ```
 
+---
+
+### Running the Development Environment
+
+You must run both the Next.js development server and the Inngest local worker queue:
+
+#### 1. Start the Next.js Web Server
 ```bash
-# Install dependencies
-npm install
-
-# Run the dev server
+# inside the cortex/ directory
 npm run dev
 ```
+Open [http://localhost:3000](http://localhost:3000) to view your local dashboard.
 
-Open [http://localhost:3000](http://localhost:3000) to view your local instance.
+#### 2. Start the Local Inngest Dev Server
+Inngest handles coordinating the background agents and sequential pipeline steps. In a new terminal tab run:
+```bash
+# inside the cortex/ directory
+npx inngest-cli@latest dev -u http://localhost:3000/api/inngest
+```
+Open [http://localhost:8288](http://localhost:8288) to view the Inngest local console to monitor agent workflows and retry tasks.
+
 
 ---
 
