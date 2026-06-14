@@ -168,3 +168,40 @@ export interface AnalyticsSnapshot {
   clicks_count: number;
   created_at: string;
 }
+
+// ─── Pipeline Runs & Steps ────────────────────────────────────
+
+export type PipelineRunStatus = "running" | "awaiting_review" | "completed" | "failed";
+export type PipelineStepAgent = "strategy" | "writing" | "creation" | "posting";
+export type PipelineStepStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "awaiting_review"
+  | "approved"
+  | "rejected"
+  | "skipped";
+
+export interface PipelineRun {
+  id: string;
+  user_id: string;
+  session_id: string | null;
+  user_message: string;
+  status: PipelineRunStatus;
+  current_step: PipelineStepAgent;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PipelineStep {
+  id: string;
+  run_id: string;
+  user_id: string;
+  agent: PipelineStepAgent;
+  status: PipelineStepStatus;
+  input_data: any;
+  output_data: any;
+  created_at: string;
+  updated_at: string;
+}
+

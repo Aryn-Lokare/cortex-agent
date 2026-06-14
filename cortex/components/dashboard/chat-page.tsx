@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { ChatMessage } from "@/lib/types";
+import { generateCortexResponse } from "@/app/dashboard/chat/actions";
 import {
   ArrowLeft,
   SendHorizonal,
@@ -49,6 +50,37 @@ export function ChatPage({
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  // Listen for realtime message inserts from background agents
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`chat_messages_realtime_${sessionId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "chat_messages",
+          filter: `session_id=eq.${sessionId}`,
+        },
+        (payload) => {
+          const newMsg = payload.new as ChatMessage;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === newMsg.id)) return prev;
+            return [...prev, newMsg];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [sessionId]);
+
 
   async function handleSend(content?: string) {
     const text = content ?? input.trim();
@@ -104,33 +136,19 @@ export function ChatPage({
       if (userMsgError) throw userMsgError;
       setMessages((prev) => [...prev, userMsg as ChatMessage]);
 
-      // Simulate assistant response (ready for Groq wiring)
-      const assistantText =
-        "I've noted your request. I'll be connected to the Cortex AI pipeline soon to provide intelligent responses. For now, your message has been saved.";
+      // Call Server Action to generate Groq response
+      const assistantMsg = await generateCortexResponse(
+        userId,
+        currentSessionId!,
+        text
+      );
+      setMessages((prev) => [...prev, assistantMsg]);
 
-      const { data: assistantMsg, error: assistantMsgError } = await supabase
-        .from("chat_messages")
-        .insert({
-          session_id: currentSessionId,
-          user_id: userId,
-          role: "assistant",
-          content: assistantText,
-        })
-        .select()
-        .single();
-
-      if (assistantMsgError) throw assistantMsgError;
-      setMessages((prev) => [...prev, assistantMsg as ChatMessage]);
-
-      // Update session metadata
-      const newCount = messages.length + 2;
-      await supabase
-        .from("chat_sessions")
-        .update({
-          last_message_preview: assistantText,
-          message_count: newCount,
-        })
-        .eq("id", currentSessionId);
+      if (assistantMsg.pipelineRunId) {
+        setTimeout(() => {
+          router.push(`/dashboard/pipeline/${assistantMsg.pipelineRunId}`);
+        }, 1000);
+      }
     } catch (err) {
       console.error("Chat error:", err);
     } finally {

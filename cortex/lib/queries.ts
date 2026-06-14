@@ -11,7 +11,10 @@ import type {
   Campaign,
   Post,
   AnalyticsSnapshot,
+  PipelineRun,
+  PipelineStep,
 } from "@/lib/types";
+
 
 // ─── Chat ─────────────────────────────────────────────────────
 
@@ -340,3 +343,77 @@ export async function getAnalyticsSnapshots(
   }
   return (data ?? []) as AnalyticsSnapshot[];
 }
+
+// ─── Pipeline Runs & Steps ────────────────────────────────────
+
+export async function getPipelineRuns(
+  userId: string
+): Promise<PipelineRun[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("pipeline_runs")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("getPipelineRuns error:", error.message);
+    return [];
+  }
+  return (data ?? []) as PipelineRun[];
+}
+
+export async function getPipelineRunWithSteps(
+  runId: string
+): Promise<{ run: PipelineRun; steps: PipelineStep[] } | null> {
+  const supabase = await createClient();
+
+  const [runRes, stepsRes] = await Promise.all([
+    supabase
+      .from("pipeline_runs")
+      .select("*")
+      .eq("id", runId)
+      .maybeSingle(),
+    supabase
+      .from("pipeline_steps")
+      .select("*")
+      .eq("run_id", runId)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (runRes.error) {
+    console.error("getPipelineRunWithSteps (run) error:", runRes.error.message);
+    return null;
+  }
+  if (!runRes.data) {
+    return null;
+  }
+
+  if (stepsRes.error) {
+    console.error("getPipelineRunWithSteps (steps) error:", stepsRes.error.message);
+    return null;
+  }
+
+  return {
+    run: runRes.data as PipelineRun,
+    steps: (stepsRes.data ?? []) as PipelineStep[],
+  };
+}
+
+export async function getActivePipelineCount(
+  userId: string
+): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("pipeline_runs")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .in("status", ["running", "awaiting_review"]);
+
+  if (error) {
+    console.error("getActivePipelineCount error:", error.message);
+    return 0;
+  }
+  return count ?? 0;
+}
+

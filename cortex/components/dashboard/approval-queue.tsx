@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { ApprovalItem } from "@/lib/types";
 import { ClipboardCheck, Check, X, AtSign, Globe, Camera } from "lucide-react";
+import { approvePostAction, rejectPostAction } from "@/app/dashboard/actions";
+
 
 interface ApprovalQueueProps {
   initialApprovals: ApprovalItem[];
@@ -74,16 +76,31 @@ export function ApprovalQueue({
   }, [userId]);
 
   async function handleAction(id: string, status: "approved" | "rejected") {
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("approval_queue")
-      .update({ status, reviewed_at: new Date().toISOString() })
-      .eq("id", id);
+    const item = approvals.find((a) => a.id === id);
+    if (!item) return;
 
-    if (!error) {
+    let postId = "";
+    try {
+      if (item.content_full) {
+        const parsed = JSON.parse(item.content_full);
+        postId = parsed.post_id || "";
+      }
+    } catch (e) {
+      console.error("Failed to parse content_full JSON in approval queue item:", e);
+    }
+
+    try {
+      if (status === "approved") {
+        await approvePostAction(postId, id);
+      } else {
+        await rejectPostAction(postId, id);
+      }
       setApprovals((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      console.error("Failed to process approval action:", err);
     }
   }
+
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-notion-soft">

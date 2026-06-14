@@ -16,11 +16,13 @@ import {
   ChevronRight,
   LogOut,
   Brain,
+  GitBranch,
 } from "lucide-react";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Chat", href: "/dashboard/chat", icon: MessageSquare },
+  { label: "Pipeline", href: "/dashboard/pipeline", icon: GitBranch },
   { label: "Content", href: "/dashboard/content", icon: FileText },
   { label: "Campaigns", href: "/dashboard/campaigns", icon: Megaphone },
   { label: "Analytics", href: "/dashboard/analytics", icon: BarChart3 },

@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Post, Campaign, PostStatus } from "@/lib/types";
+import { editPostAction, publishPostNowAction } from "@/app/dashboard/actions";
+
 import {
   Search,
   Plus,
@@ -121,37 +123,39 @@ export function ContentManager({
     e.preventDefault();
     if (!selectedPost || !postContent.trim()) return;
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("posts")
-      .update({
+    try {
+      await editPostAction(selectedPost.id, {
         title: postTitle.trim() || null,
         content: postContent,
         platform: postPlatform,
         campaign_id: postCampaign || null,
-      })
-      .eq("id", selectedPost.id);
-
-    if (error) {
-      console.error("Update post error:", error.message);
-    } else {
+      });
       setIsEditOpen(false);
       setSelectedPost(null);
       resetForm();
+    } catch (error: any) {
+      console.error("Update post error:", error.message || error);
     }
   };
 
   const handleStatusChange = async (postId: string, newStatus: PostStatus, extra = {}) => {
+    if (newStatus === "published") {
+      try {
+        await publishPostNowAction(postId);
+      } catch (err: any) {
+        console.error("Publish action error:", err.message || err);
+      }
+      return;
+    }
+
     const supabase = createClient();
     const updateData: any = { status: newStatus, ...extra };
-    if (newStatus === "published") {
-      updateData.published_at = new Date().toISOString();
-    }
     const { error } = await supabase.from("posts").update(updateData).eq("id", postId);
     if (error) {
       console.error("Update post status error:", error.message);
     }
   };
+
 
   const handleDeletePost = async (postId: string) => {
     if (!confirm("Are you sure you want to delete this post?")) return;

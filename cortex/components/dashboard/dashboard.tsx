@@ -38,7 +38,7 @@ export function Dashboard({
     <div className="flex h-full overflow-hidden">
       {/* ─── Central Workspace ─────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopSummaryBar counts={counts} />
+        <TopSummaryBar counts={counts} userId={userId} />
 
         <div className="flex-1 overflow-y-auto">
           <div className="px-6 py-5 space-y-5">

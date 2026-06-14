@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import type { DashboardCounts } from "@/lib/types";
 import { ClipboardCheck, CalendarClock, Zap, Lightbulb } from "lucide-react";
 
 interface TopSummaryBarProps {
   counts: DashboardCounts;
+  userId?: string;
 }
 
 const metrics = [
@@ -34,7 +37,102 @@ const metrics = [
   },
 ];
 
-export function TopSummaryBar({ counts }: TopSummaryBarProps) {
+export function TopSummaryBar({ counts, userId }: TopSummaryBarProps) {
+  const [countsState, setCountsState] = useState<DashboardCounts>(counts);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const supabase = createClient();
+
+    const fetchCounts = async () => {
+      const [approvals, posts, tasks, learnings] = await Promise.all([
+        supabase
+          .from("approval_queue")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("status", "pending"),
+        supabase
+          .from("agent_tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("agent", "posting")
+          .in("status", ["queued", "in_progress"]),
+        supabase
+          .from("agent_tasks")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId)
+          .eq("status", "in_progress"),
+        supabase
+          .from("learnings")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", userId),
+      ]);
+
+      setCountsState({
+        pendingApprovals: approvals.count ?? 0,
+        scheduledPosts: posts.count ?? 0,
+        activeTasks: tasks.count ?? 0,
+        learningCount: learnings.count ?? 0,
+      });
+    };
+
+    // Listen to changes in approval_queue, agent_tasks, learnings
+    const approvalsChannel = supabase
+      .channel("summary_approvals_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "approval_queue",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .subscribe();
+
+    const tasksChannel = supabase
+      .channel("summary_tasks_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "agent_tasks",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .subscribe();
+
+    const learningsChannel = supabase
+      .channel("summary_learnings_realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "learnings",
+          filter: `user_id=eq.${userId}`,
+        },
+        () => {
+          fetchCounts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(approvalsChannel);
+      supabase.removeChannel(tasksChannel);
+      supabase.removeChannel(learningsChannel);
+    };
+  }, [userId]);
+
   return (
     <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-card/50">
       {metrics.map((m) => (
@@ -44,10 +142,11 @@ export function TopSummaryBar({ counts }: TopSummaryBarProps) {
         >
           <span className={`h-2 w-2 rounded-full ${m.dotColor}`} />
           <m.icon className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-eyebrow text-foreground">{counts[m.key]}</span>
+          <span className="text-eyebrow text-foreground">{countsState[m.key]}</span>
           <span className="text-eyebrow text-muted-foreground">{m.label}</span>
         </div>
       ))}
     </div>
   );
 }
+
